@@ -1,4 +1,4 @@
- const express = require("express");
+const express = require("express");
 const axios = require("axios");
 
 const app = express();
@@ -10,25 +10,40 @@ const ACCESS_TOKEN = "EAAWqTw9MHPUBRQeW8Wf86s9cUDfLDhmZCgMsLT9k2Hy87edJKZC5oWjqg
 const PHONE_ID = "1045686435297043";
 const OPENROUTER_KEY = "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";
 
-// 🔹 Webhook verify
+// ✅ ROOT FIX (Cannot GET / solve)
+app.get("/", (req, res) => {
+  res.send("Bot running 🚀");
+});
+
+// 🔹 Webhook verify (FIXED)
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
+  console.log("VERIFY REQUEST:", mode, token);
+
   if (mode === "subscribe" && token === TOKEN) {
-    res.send(challenge);
+    return res.status(200).send(challenge); // ✅ ONLY challenge
   } else {
-    res.sendStatus(403);
+    return res.sendStatus(403);
   }
 });
 
-// 🔹 Receive messages
+// 🔹 Receive messages (SAFE VERSION)
 app.post("/webhook", async (req, res) => {
   try {
-    const msg = req.body.entry[0].changes[0].value.messages[0];
+    const entry = req.body.entry?.[0]?.changes?.[0]?.value;
+
+    if (!entry || !entry.messages) {
+      return res.sendStatus(200);
+    }
+
+    const msg = entry.messages[0];
     const from = msg.from;
-    const text = msg.text.body;
+    const text = msg.text?.body;
+
+    if (!text) return res.sendStatus(200);
 
     // 🤖 AI call
     const aiRes = await axios.post(
@@ -38,7 +53,7 @@ app.post("/webhook", async (req, res) => {
         messages: [
           {
             role: "system",
-            content: "You are a friendly WhatsApp AI assistant. Reply short and helpful."
+            content: "Reply short, friendly, WhatsApp style. Use Urdu if user uses Urdu."
           },
           { role: "user", content: text }
         ]
@@ -72,7 +87,7 @@ app.post("/webhook", async (req, res) => {
     res.sendStatus(200);
 
   } catch (err) {
-    console.log(err);
+    console.error("ERROR:", err.response?.data || err.message);
     res.sendStatus(500);
   }
 });
