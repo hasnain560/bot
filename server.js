@@ -5,19 +5,37 @@ const app = express();
 app.use(express.json());
 
 // 🔑 ENV VARIABLES
-const TOKEN = "mywhatsappbot";
-const ACCESS_TOKEN = "EAAWqTw9MHPUBRTLZC44jSYkP51L7AO1unlFaK5ZCE2z930ZC3zNxe9UZC9GcNzwkVLS9GUVde5BxmsceUpzpplJ95OeEEKewvdTVYdxzRHWLCdkgsYy7r3215RuYMPqaWmBFYBs5ZAZC7LZC20WJhmoaT1q3sms8MwYwZAqT18P7Jw9tnQAf2RAvIsdUpv0LmTuZBY2AOYFdJsIYHUNgcEJ711ZCqAQK9BDtRpPtFaCETLZBW1YGKEfZCsd4EQYQdPSxSFxOvVxP9MGfiZCzVU2ucwmMMory7";
-const PHONE_ID = "1045686435297043";
+const TOKEN = process.env.VERIFY_TOKEN || "mywhatsappbot";
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const PHONE_ID = process.env.PHONE_ID;
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 
-  app.post("/webhook", async (req, res) => {
-  console.log("BODY:", JSON.stringify(req.body, null, 2)); // 👈 MUST
+// ==============================
+// ✅ WEBHOOK VERIFY (GET)
+// ==============================
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === TOKEN) {
+    console.log("Webhook verified ✅");
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// ==============================
+// ✅ WEBHOOK RECEIVE (POST)
+// ==============================
+app.post("/webhook", async (req, res) => {
+  console.log("BODY:", JSON.stringify(req.body, null, 2));
 
   try {
     const entry = req.body.entry?.[0]?.changes?.[0]?.value;
 
     if (!entry || !entry.messages) {
-      console.log("No message found");
       return res.sendStatus(200);
     }
 
@@ -30,8 +48,39 @@ const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 
     if (!text) return res.sendStatus(200);
 
-    const reply = "Hello from bot ✅";
+    // ==============================
+    // 🤖 AI REPLY (OpenRouter optional)
+    // ==============================
+    let reply = "Hello from bot ✅";
 
+    if (OPENROUTER_KEY) {
+      try {
+        const aiRes = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "openai/gpt-3.5-turbo",
+            messages: [
+              { role: "system", content: "You are a helpful WhatsApp assistant." },
+              { role: "user", content: text }
+            ]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${OPENROUTER_KEY}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        reply = aiRes.data.choices[0].message.content;
+      } catch (err) {
+        console.log("AI ERROR:", err.response?.data || err.message);
+      }
+    }
+
+    // ==============================
+    // 📩 SEND MESSAGE
+    // ==============================
     const response = await axios.post(
       `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
       {
@@ -52,7 +101,17 @@ const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
     res.sendStatus(200);
 
   } catch (err) {
-    console.error("ERROR FULL:", err.response?.data || err.message);
+    console.error("ERROR STATUS:", err.response?.status);
+    console.error("ERROR DATA:", err.response?.data);
     res.sendStatus(500);
   }
+});
+
+// ==============================
+// 🚀 SERVER START (RAILWAY FIX)
+// ==============================
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
