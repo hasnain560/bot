@@ -45,27 +45,8 @@ app.post("/webhook", async (req, res) => {
 
     if (!text) return res.sendStatus(200);
 
-    // 🤖 AI call
-    const aiRes = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "openai/gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "Reply short, friendly, WhatsApp style. Use Urdu if user uses Urdu."
-          },
-          { role: "user", content: text }
-        ]
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
+  
+const reply = "Hello from bot ✅";
     const reply = aiRes.data.choices[0].message.content;
 
     // 📤 Send message back
